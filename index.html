@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ta">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JARVIS</title>
+<style>
+:root{--bg:#000}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#000}}
+:root[data-theme="dark"]{--bg:#000}
+html,body{margin:0;height:100%;background:var(--bg);overflow:hidden;-webkit-tap-highlight-color:transparent}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+#top{position:fixed;top:0;left:0;right:0;z-index:5;display:flex;justify-content:center;padding-top:calc(env(safe-area-inset-top,0px) + 8px);pointer-events:none}
+#tabs{display:flex;gap:2px;padding:3px;border-radius:999px;background:rgba(255,160,50,.1);backdrop-filter:blur(8px);pointer-events:auto}
+.tab{border:0;background:none;color:#ffb866;font:600 11px system-ui,sans-serif;padding:5px 12px;border-radius:999px}
+.tab.act{background:rgba(255,150,30,.3);color:#fff2dc}
+#gear{position:fixed;z-index:6;top:calc(env(safe-area-inset-top,0px) + 8px);right:12px;border:0;background:none;color:#ffb866;font-size:18px;opacity:.75;padding:2px 6px}
+.panel{position:fixed;z-index:4;left:0;right:0;bottom:0;top:calc(env(safe-area-inset-top,0px) + 44px);background:rgba(0,0,0,.86);backdrop-filter:blur(6px);display:none;flex-direction:column;padding:12px;color:#ffd9a8;font-family:system-ui,'Noto Sans Tamil',sans-serif;max-width:640px;margin:0 auto}
+.panel.on{display:flex}
+#log{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px}
+.m{padding:9px 13px;border-radius:14px;max-width:85%;line-height:1.45;border:1px solid rgba(255,150,30,.35);font-size:.95rem}
+.m.u{align-self:flex-end;background:rgba(255,150,30,.18)}.m.j{align-self:flex-start}
+.row{display:flex;gap:8px;padding-top:8px;padding-bottom:env(safe-area-inset-bottom,0px)}
+.panel input{flex:1;min-width:0;background:rgba(255,160,50,.08);color:#ffe9cc;border:1px solid rgba(255,150,30,.4);border-radius:999px;padding:11px 15px;font-size:1rem}
+.panel button.b{background:#ff9a1f;color:#1a0a00;border:0;border-radius:999px;padding:10px 16px;font-weight:600}
+#clk{font-size:3.2rem;font-weight:300;text-align:center;margin-top:30px;color:#ffb866}
+#dt{text-align:center;opacity:.8;margin-bottom:24px}
+.chip{display:block;width:100%;margin:6px 0;text-align:left;background:rgba(255,150,30,.1);color:#ffd9a8;border:1px solid rgba(255,150,30,.35);border-radius:14px;padding:12px 14px;font-size:.95rem}
+.note{font-size:.8rem;opacity:.7;line-height:1.5;margin-top:12px}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="top"><div id="tabs"><button class="tab act" data-t="home">Home</button><button class="tab" data-t="chat">Chat</button><button class="tab" data-t="dash">Dashboard</button></div></div>
+<button id="gear" aria-label="Settings">⚙</button>
+<div class="panel" id="chat"><div id="log"></div><div class="row"><input id="ci" placeholder="இங்கே டைப் செய்யுங்கள்…" autocomplete="off"><button class="b" id="cs">➤</button></div></div>
+<div class="panel" id="dash"><div id="clk"></div><div id="dt"></div><button class="chip" data-q="ஒரு சிறிய ஜோக் சொல்லு">😄 ஒரு ஜோக் சொல்லு</button><button class="chip" data-q="ஒரு புதிய சுவையான உணவு சொல்லு">🍛 இன்று என்ன சாப்பிடலாம்?</button><button class="chip" data-q="எனக்கு ஒரு உற்சாகப் பேச்சு சொல்லு">💪 உற்சாகப்புத்து</button></div>
+<div class="panel" id="set"><div style="font-weight:600;margin-bottom:8px">API Key</div><div class="row"><input id="ki" type="password" placeholder="sk-ant-…" autocomplete="off"><button class="b" id="ks">Save</button></div><div class="note" id="kn">claude.ai-இல் திறந்தால் கீ தேவையில்லை, உள்ளமைந்த Claude இணைப்பு பயன்படும். கீ, HTML ஃபைலை போனில் நேரடியாக திறக்கும்போது மட்டும் வேலை செய்யும். கீ உங்கள் சாதனத்தில் மட்டும் சேமிக்கப்படும்.</div></div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W,H,D;
+function rs(){D=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;cv.width=W*D;cv.height=H*D;ctx.setTransform(D,0,0,D,0,0);}
+addEventListener('resize',rs);rs();
+const rnd=Math.random;
+const pts=[],cloud=[],rays=[];
+for(let i=0;i<1100;i++){const y=1-2*(i+.5)/1100,r=Math.sqrt(1-y*y),t=i*2.399963;pts.push({x:Math.cos(t)*r,y,z:Math.sin(t)*r,s:.5+rnd()*1.3});}
+for(let i=0;i<650;i++){const u=rnd()*6.283,v=Math.acos(2*rnd()-1),d=1.04+Math.pow(rnd(),2.2)*.6;cloud.push({x:Math.sin(v)*Math.cos(u)*d,y:Math.cos(v)*d,z:Math.sin(v)*Math.sin(u)*d,s:.4+rnd()*1.2});}
+for(let i=0;i<38;i++){const u=rnd()*6.283,v=Math.acos(2*rnd()-1);rays.push({x:Math.sin(v)*Math.cos(u),y:Math.cos(v),z:Math.sin(v)*Math.sin(u),l:.9+rnd()*1.1,p:rnd()*6});}
+let ay=0,ax=.35,E=.25,tE=.25,mode='idle',T=0;
+function proj(x,y,z,R,c){const cy=Math.cos(ay),sy=Math.sin(ay),cx=Math.cos(ax),sx=Math.sin(ax);
+ let X=x*cy+z*sy,Z=-x*sy+z*cy,Y=y*cx-Z*sx;Z=y*sx+Z*cx;const f=3.2/(3.2-Z*.6);
+ return [W/2+X*R*f,H/2+Y*R*f,Z];}
+function frame(ts){
+ T=ts/1000;
+ tE=mode==='speaking'?.55+.45*Math.abs(Math.sin(T*7.3)*Math.sin(T*2.9)):mode==='thinking'?.9:mode==='awake'?.7:.25;
+ E+=(tE-E)*.08;
+ ay+=.003+E*.012+(mode==='thinking'?.02:0);
+ const R=Math.min(W,H)*.3*(1+.07*E*Math.sin(T*(mode==='speaking'?9:3)));
+ ctx.globalCompositeOperation='source-over';ctx.fillStyle='rgba(0,0,0,.32)';ctx.fillRect(0,0,W,H);
+ ctx.globalCompositeOperation='lighter';
+ const live=SRrunning||mode!=='idle';const A=live?1:.55;
+ // glow
+ let g=ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,R*1.5);
+ g.addColorStop(0,`rgba(255,160,40,${.3*A+.25*E})`);g.addColorStop(.5,`rgba(255,90,10,${.08+.1*E})`);g.addColorStop(1,'rgba(0,0,0,0)');
+ ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+ // wireframe
+ ctx.lineWidth=.7;ctx.strokeStyle=`rgba(255,140,30,${.22*A+.1*E})`;
+ for(let m=0;m<8;m++){ctx.beginPath();for(let k=0;k<=40;k++){const a=k/40*6.283,ph=m/8*3.1416;const p=proj(Math.cos(a)*Math.cos(ph),Math.sin(a),Math.cos(a)*Math.sin(ph),R*.98);k?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]);}ctx.stroke();}
+ for(let m=-3;m<=3;m++){const yy=m/4,rr=Math.sqrt(1-yy*yy);ctx.beginPath();for(let k=0;k<=40;k++){const a=k/40*6.283;const p=proj(Math.cos(a)*rr,yy,Math.sin(a)*rr,R*.98);k?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]);}ctx.stroke();}
+ // rays
+ for(const r of rays){const len=r.l*(1+.35*E*Math.sin(T*4+r.p));const p0=proj(0,0,0,R),p1=proj(r.x*len,r.y*len,r.z*len,R);
+  const gr=ctx.createLinearGradient(p0[0],p0[1],p1[0],p1[1]);gr.addColorStop(0,`rgba(255,220,120,${.9*A})`);gr.addColorStop(1,'rgba(255,100,10,0)');
+  ctx.strokeStyle=gr;ctx.lineWidth=1.1;ctx.beginPath();ctx.moveTo(p0[0],p0[1]);ctx.lineTo(p1[0],p1[1]);ctx.stroke();}
+ // particles
+ for(let i=0;i<pts.length;i++){const q=pts[i],k=1+E*.14*Math.sin(T*3+i);const p=proj(q.x*k,q.y*k,q.z*k,R);const d=(p[2]+1)/2;
+  ctx.fillStyle=`rgba(255,${130+d*100|0},${20+d*40|0},${(.35+d*.65)*A})`;const s=q.s*(.7+d*.6);ctx.fillRect(p[0],p[1],s,s);}
+ for(let i=0;i<cloud.length;i++){const q=cloud[i],k=1+E*.2*Math.sin(T*2+i*.7);const p=proj(q.x*k,q.y*k,q.z*k,R);const d=(p[2]+1.6)/3.2;
+  ctx.fillStyle=`rgba(255,${110+d*80|0},20,${(.25+d*.5)*A})`;ctx.fillRect(p[0],p[1],q.s,q.s);}
+ // ring
+ const a0=T*(.6+E);ctx.lineWidth=5+E*4;ctx.strokeStyle=`rgba(255,150,30,${.45*A+.2*E})`;ctx.beginPath();
+ for(let k=0;k<=60;k++){const a=a0+k/60*2.4;const p=proj(Math.cos(a)*1.32,Math.sin(a)*.25,Math.sin(a)*1.32*.9,R);k?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]);}ctx.stroke();
+ for(let k=0;k<220;k++){const a=k/220*6.283+T*.2;const p=proj(Math.cos(a)*1.32,Math.sin(a)*.25,Math.sin(a)*1.32*.9,R);ctx.fillStyle=`rgba(255,170,60,${.5*A})`;ctx.fillRect(p[0],p[1],1.3,1.3);}
+ // core
+ const cr=R*(.16+.07*E);g=ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,cr*2.2);
+ g.addColorStop(0,'rgba(255,255,230,1)');g.addColorStop(.35,`rgba(255,210,80,${.9*A})`);g.addColorStop(1,'rgba(255,110,10,0)');
+ ctx.fillStyle=g;ctx.beginPath();ctx.arc(W/2,H/2,cr*2.2,0,6.283);ctx.fill();
+ requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+/* ---- Voice ---- */
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+let rec=null,SRrunning=false,awakeUntil=0,speaking=false,busy=false,hist=[],warned=false,blocked=false,greeted=false;
+const WAKE=/jarvis|jarwis|ஜார்|ஜர்வ|ஜாவிஸ்|சார்வி|ஹார்வி|ஜார்வே/i;
+function setMode(m){mode=m;}
+function startRec(){
+ if(!SR||SRrunning||speaking||busy||blocked)return;
+ rec=new SR();rec.lang='ta-IN';rec.continuous=true;rec.interimResults=false;
+ rec.onstart=()=>{SRrunning=true;};
+ rec.onend=()=>{SRrunning=false;if(!speaking&&!busy)setTimeout(startRec,400);};
+ rec.onerror=e=>{SRrunning=false;if(e.error==='not-allowed'||e.error==='service-not-allowed'){blocked=true;if(!warned){warned=true;say('மைக் அனுமதி கிடைக்கவில்லை. Chrome உலாவியில் திறந்து அனுமதி கொடுங்கள்.');}}};
+ rec.onresult=e=>{for(let i=e.resultIndex;i<e.results.length;i++){if(e.results[i].isFinal)heard(e.results[i][0].transcript.trim());}};
+ try{rec.start();}catch(err){}
+}
+function heard(text){
+ if(!text||busy||speaking)return;
+ const words=text.split(/\s+/);const wi=words.findIndex(w=>WAKE.test(w));
+ if(wi>=0){const rest=words.slice(wi+1).join(' ').trim();
+  if(rest.length>2)return command(rest);
+  awakeUntil=Date.now()+10000;setMode('awake');return say('சொல்லுங்கள்',true);}
+ if(Date.now()<awakeUntil)command(text);
+}
+function say(t,keepAwake){
+ addLog('j',t);
+ speaking=true;setMode('speaking');try{rec&&rec.abort();}catch(e){}
+ const done=()=>{if(!speaking)return;speaking=false;if(keepAwake){setMode('awake');}else{setMode('idle');awakeUntil=0;}startRec();};
+ try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang='ta-IN';
+  const v=speechSynthesis.getVoices().find(v=>v.lang&&v.lang.toLowerCase().startsWith('ta'));if(v)u.voice=v;
+  u.onend=done;u.onerror=done;speechSynthesis.speak(u);setTimeout(done,Math.max(4000,t.length*180));}catch(e){done();}
+}
+async function command(text){
+ addLog('u',text);
+ const s=text.toLowerCase();
+ if(/உருவாக்க|யார் செய்த|who (made|created|built)|creator/.test(s))return say('என்னை உருவாக்கியவர் எம். கௌசிக்.');
+ if(/நேரம்|மணி|time/.test(s))return say('இப்போது நேரம் '+new Date().toLocaleTimeString('ta-IN',{hour:'numeric',minute:'2-digit'}));
+ if(/தேதி|இன்று|date/.test(s))return say(new Date().toLocaleDateString('ta-IN',{dateStyle:'full'}));
+ let sample=null;try{sample=await claude.use('sample');}catch(e){}
+ if(!sample&&!getKey())return say('மன்னிக்கவும், AI இணைப்பு இல்லை.');
+ busy=true;setMode('thinking');try{rec&&rec.abort();}catch(e){}
+ const sys='நீ JARVIS என்ற நட்பான AI குரல் உதவியாளர். உன்னை உருவாக்கியவர் எம். கௌசிக். எந்தக் கேள்விக்கும் பதில் சொல்லு. எப்போதும் எளிய பேச்சுத் தமிழில் மட்டும் பதில் சொல்லு. பதில் 1-3 சிறு வாக்கியங்கள், மார்க்டவுன் அல்லது பட்டியல் வேண்டாம், ஏனெனில் இது குரலாகப் படிக்கப்படும்.';
+ const msgs=[{role:'user',content:sys},{role:'assistant',content:'சரி.'},...hist,{role:'user',content:text}];
+ let out='மன்னிக்கவும், பதில் பெற முடியவில்லை.';
+ try{const r=await ask(sample,msgs);if(r.text&&r.text.trim()){out=r.text.trim();hist.push({role:'user',content:text},{role:'assistant',content:out});hist=hist.slice(-12);}}catch(e){if(e&&e.code==='rate_limited')out='கொஞ்சம் பொறுங்கள், மீண்டும் முயற்சிக்கவும்.';}
+ busy=false;say(out);
+}
+function tap(e){
+ if(e&&e.target&&e.target.closest&&e.target.closest('#top,#gear,.panel'))return;
+ try{speechSynthesis.resume();}catch(e){}
+ blocked=false;
+ if(!greeted){greeted=true;if(!SR)return say('இந்த உலாவியில் குரல் கேட்கும் வசதி இல்லை. Chrome உலாவியில் திறக்கவும்.');return say('ஜார்வேஸ் தயார். ஜார்வேஸ் என்று சொல்லுங்கள்.');}
+ if(!SRrunning)startRec();
+ else if(!speaking&&!busy){awakeUntil=Date.now()+10000;setMode('awake');}
+}
+addEventListener('pointerdown',tap);addEventListener('keydown',tap);
+function $(id){return document.getElementById(id);}
+function addLog(r,t){const d=document.createElement('div');d.className='m '+r;d.textContent=t;const l=$('log');l.appendChild(d);l.scrollTop=l.scrollHeight;}
+function getKey(){try{return localStorage.getItem('jk')||'';}catch(e){return '';}}
+async function ask(sample,msgs){
+ const k=getKey();
+ if(k){try{const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':k,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:400,messages:msgs})});const j=await r.json();const t=j.content&&j.content[0]&&j.content[0].text;if(t)return{text:t};}catch(e){}}
+ if(!sample)throw new Error('none');
+ return sample(msgs,{cache:false,modelTier:'quick'});
+}
+function show(n){['chat','dash','set'].forEach(x=>$(x).classList.toggle('on',x===n));document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('act',n==='home'?b.dataset.t==='home':b.dataset.t===n));}
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>show(b.dataset.t));
+$('gear').onclick=()=>show($('set').classList.contains('on')?'home':'set');
+function sendChat(){const v=$('ci').value.trim();$('ci').value='';if(v)command(v);}
+$('cs').onclick=sendChat;$('ci').addEventListener('keydown',e=>{if(e.key==='Enter')sendChat();});
+document.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{show('chat');command(c.dataset.q);});
+$('ki').value=getKey()?'••••••••':'';
+$('ks').onclick=()=>{const v=$('ki').value.trim();if(v.startsWith('•'))return;try{v?localStorage.setItem('jk',v):localStorage.removeItem('jk');$('ki').value=v?'••••••••':'';}catch(e){}show('home');};
+function tick(){const n=new Date();$('clk').textContent=n.toLocaleTimeString('ta-IN',{hour:'2-digit',minute:'2-digit'});$('dt').textContent=n.toLocaleDateString('ta-IN',{dateStyle:'full'});}
+tick();setInterval(tick,1000);
+startRec();
+</script>
+</body>
+</html>
